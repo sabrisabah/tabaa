@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dr. Taiba — Login</title>
+  <link rel="stylesheet" href="/static/auth.css" />
+</head>
+<body class="auth-body">
+  <div class="auth-bg" aria-hidden="true">
+    <div class="shade"></div>
+    <div class="shape s1"></div>
+    <div class="shape s2"></div>
+    <div class="shape s3"></div>
+    <div class="shape s4"></div>
+    <div class="shape s5"></div>
+    <div class="ring"></div>
+    <div class="zig"></div>
+  </div>
+
+  <div class="auth-wrap">
+    <!-- LOGIN -->
+    <div class="auth-card" id="loginPanel">
+      <div class="auth-logo">
+        <span><span class="mark">T</span> Dr. Taiba</span>
+      </div>
+      <h1>Login</h1>
+      <div class="auth-alert" id="loginAlert"></div>
+      <form id="loginForm">
+        <div class="auth-field">
+          <label for="loginId">Email / Phone</label>
+          <input id="loginId" name="identifier" type="text" placeholder="username@gmail.com" required autocomplete="username" />
+        </div>
+        <div class="auth-field">
+          <label for="loginPass">Password</label>
+          <div class="password-wrap">
+            <input id="loginPass" name="password" type="password" placeholder="Password" required autocomplete="current-password" />
+            <button type="button" class="toggle-pass" data-target="loginPass" aria-label="Show password">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="auth-row">
+          <a class="auth-link" href="#" id="forgotLink">Forgot Password?</a>
+        </div>
+        <button class="auth-btn" type="submit">Sign in</button>
+      </form>
+
+      <p class="auth-footer" style="margin-top:1.15rem">
+        Don't have an account yet?
+        <a class="auth-link strong" href="#" id="showRegister">Register for free</a>
+      </p>
+    </div>
+
+    <!-- REGISTER -->
+    <div class="auth-card panel-hidden" id="registerPanel">
+      <div class="auth-logo">
+        <span><span class="mark">T</span> Dr. Taiba</span>
+      </div>
+      <h1>Register</h1>
+      <div class="auth-alert" id="regAlert"></div>
+      <form id="registerForm">
+        <div class="auth-field">
+          <label>Full name</label>
+          <input name="full_name" required placeholder="Your full name" />
+        </div>
+        <div class="auth-grid">
+          <div class="auth-field">
+            <label>Phone</label>
+            <input name="phone" required placeholder="07xxxxxxxxx" />
+          </div>
+          <div class="auth-field">
+            <label>Age</label>
+            <input name="age" type="number" min="1" max="120" required placeholder="Age" />
+          </div>
+          <div class="auth-field">
+            <label>Gender</label>
+            <select name="gender" required>
+              <option value="female">Female</option>
+              <option value="male">Male</option>
+            </select>
+          </div>
+          <div class="auth-field">
+            <label>Occupation</label>
+            <input name="occupation" placeholder="Optional" />
+          </div>
+        </div>
+        <div class="auth-field">
+          <label>First visit date & time</label>
+          <input name="visit_date" type="datetime-local" required />
+        </div>
+        <div class="auth-field">
+          <label>Password (4+ digits)</label>
+          <div class="password-wrap">
+            <input id="regPass" name="password" type="password" pattern="\d{4,}" required placeholder="Numeric password" />
+            <button type="button" class="toggle-pass" data-target="regPass" aria-label="Show password">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
+        </div>
+        <button class="auth-btn" type="submit">Create account</button>
+      </form>
+      <p class="auth-footer" style="margin-top:1rem">
+        Already have an account?
+        <a class="auth-link strong" href="#" id="showLogin">Sign in</a>
+      </p>
+    </div>
+
+    <div class="auth-staff">
+      <a href="/doctor/">Doctor login</a>
+      <a href="/secretary/">Secretary login</a>
+    </div>
+  </div>
+
+  <script src="/static/api.js"></script>
+  <script>
+    const user = API.getUser();
+    if (user && API.getToken()) {
+      if (user.role === "patient") location.href = "/patient/app/";
+      else if (user.role === "doctor") location.href = "/doctor/app/";
+      else if (user.role === "secretary") location.href = "/secretary/app/";
+    }
+
+    const visitInput = document.querySelector('#registerForm [name="visit_date"]');
+    const now = new Date();
+    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+    visitInput.value = now.toISOString().slice(0, 16);
+
+    function showAlert(el, msg, ok) {
+      el.textContent = msg;
+      el.classList.add("show");
+      el.classList.toggle("ok", !!ok);
+    }
+    function hideAlert(el) {
+      el.classList.remove("show", "ok");
+      el.textContent = "";
+    }
+
+    $("#showRegister").onclick = (e) => {
+      e.preventDefault();
+      $("#loginPanel").classList.add("panel-hidden");
+      $("#registerPanel").classList.remove("panel-hidden");
+    };
+    $("#showLogin").onclick = (e) => {
+      e.preventDefault();
+      $("#registerPanel").classList.add("panel-hidden");
+      $("#loginPanel").classList.remove("panel-hidden");
+    };
+    $("#forgotLink").onclick = (e) => {
+      e.preventDefault();
+      showAlert($("#loginAlert"), "Please contact the clinic to reset your password.");
+    };
+
+    $$(".toggle-pass").forEach((btn) => {
+      btn.onclick = () => {
+        const input = document.getElementById(btn.dataset.target);
+        input.type = input.type === "password" ? "text" : "password";
+      };
+    });
+
+    $("#loginForm").onsubmit = async (e) => {
+      e.preventDefault();
+      hideAlert($("#loginAlert"));
+      const fd = new FormData(e.target);
+      try {
+        const data = await API.login(fd.get("identifier"), fd.get("password"));
+        API.setSession(data);
+        if (data.user.role === "patient") location.href = "/patient/app/";
+        else if (data.user.role === "doctor") location.href = "/doctor/app/";
+        else if (data.user.role === "secretary") location.href = "/secretary/app/";
+        else location.href = "/";
+      } catch (err) {
+        showAlert($("#loginAlert"), err.message);
+      }
+    };
+
+    $("#registerForm").onsubmit = async (e) => {
+      e.preventDefault();
+      hideAlert($("#regAlert"));
+      const fd = new FormData(e.target);
+      const payload = Object.fromEntries(fd.entries());
+      payload.age = Number(payload.age);
+      payload.visit_date = fromLocalInputValue(payload.visit_date);
+      try {
+        const data = await API.register(payload);
+        API.setSession(data);
+        location.href = "/patient/app/";
+      } catch (err) {
+        showAlert($("#regAlert"), err.message);
+      }
+    };
+  </script>
+</body>
+</html>

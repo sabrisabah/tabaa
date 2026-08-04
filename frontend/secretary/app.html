@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>لوحة السكرتيرة — دكتورة طيبة</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand"><div class="brand-mark">ط</div><span>دكتورة طيبة</span></div>
+      <nav>
+        <button class="tab-btn active" data-view="appointments">لوحة المواعيد</button>
+        <button class="tab-btn" data-view="register">تسجيل مريض جديد</button>
+        <button class="tab-btn" data-view="patient">ملف مريض</button>
+      </nav>
+      <div style="margin-top:2rem">
+        <p id="who" style="color:#d1d5db;font-size:.92rem"></p>
+        <button class="btn btn-secondary btn-sm" id="logout" style="width:100%">خروج</button>
+      </div>
+    </aside>
+    <main class="main">
+      <div id="alert" hidden></div>
+
+      <section id="view-appointments">
+        <h2>متابعة المراجعين — المواعيد القادمة</h2>
+        <div class="panel" id="upcomingBox" style="margin-bottom:1rem"></div>
+        <div class="toolbar">
+          <h3 style="margin:0">الجدول الرئيسي</h3>
+          <input class="search" id="search" placeholder="بحث..." />
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>المريض</th><th>الهاتف</th><th>الموعد</th><th>حفظ</th><th>الوصول</th><th>الملف</th></tr></thead>
+            <tbody id="apptRows"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="view-register" hidden>
+        <div class="panel">
+          <h2>تسجيل مريض جديد</h2>
+          <p class="muted">بعد الحفظ تظهر بيانات الدخول، وتبقى جلستك نشطة.</p>
+          <form id="regForm">
+            <div class="grid-2">
+              <div class="field"><label>الاسم الكامل</label><input name="full_name" required /></div>
+              <div class="field"><label>الهاتف</label><input name="phone" required /></div>
+              <div class="field"><label>العمر</label><input name="age" type="number" required /></div>
+              <div class="field"><label>الجنس</label>
+                <select name="gender"><option value="female">أنثى</option><option value="male">ذكر</option></select>
+              </div>
+              <div class="field"><label>المهنة</label><input name="occupation" /></div>
+              <div class="field"><label>موعد الزيارة</label><input name="visit_date" type="datetime-local" required /></div>
+              <div class="field"><label>كلمة مرور رقمية</label><input name="password" pattern="\d{4,}" required /></div>
+            </div>
+            <button class="btn btn-primary" type="submit">تسجيل</button>
+          </form>
+          <div id="credBox" class="alert alert-ok" hidden style="margin-top:1rem"></div>
+        </div>
+      </section>
+
+      <section id="view-patient" hidden>
+        <div class="toolbar">
+          <input class="search" id="patientSearch" placeholder="ابحث واختیري مريضاً" />
+        </div>
+        <div class="split">
+          <div id="patientList"></div>
+          <div>
+            <div class="chip-row" style="margin-bottom:1rem">
+              <button class="btn btn-sm btn-primary" data-ptab="assessment">استمارة التقييم</button>
+              <button class="btn btn-sm btn-secondary" data-ptab="followup">ملف المتابعة</button>
+            </div>
+            <div id="patientBody"><div class="empty">اختاري مريضاً من القائمة</div></div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="/static/api.js"></script>
+  <script>
+    const user = requireRole(["secretary"], "/secretary/");
+    $("#who").textContent = user.full_name || user.email;
+    $("#logout").onclick = () => { API.clearSession(); location.href = "/secretary/"; };
+
+    let patients = [];
+    let upcoming = [];
+    let current = null;
+    let clinicInfo = { lab_keys: [], injections: [] };
+    let ptab = "assessment";
+
+    $$(".sidebar .tab-btn").forEach((btn) => {
+      btn.onclick = () => {
+        $$(".sidebar .tab-btn").forEach((b) => b.classList.remove("active"));
+        btn.classList.add("active");
+        ["appointments", "register", "patient"].forEach((v) => {
+          $(`#view-${v}`).hidden = v !== btn.dataset.view;
+        });
+      };
+    });
+
+    async function fetchPatients(q = "") {
+      const path = q ? `/patients/?q=${encodeURIComponent(q)}` : "/patients/";
+      const data = await API.get(path);
+      patients = data.patients || [];
+      upcoming = data.upcoming || [];
+      renderAppointments();
+      renderPatientList();
+    }
+
+    function renderAppointments() {
+      $("#upcomingBox").innerHTML = upcoming.length
+        ? `<ul>${upcoming.map((p) => `<li><strong>${p.full_name}</strong> — ${formatDateTime(p.visit_date)}</li>`).join("")}</ul>`
+        : `<div class="empty">لا مواعيد لاحقة.</div>`;
+
+      $("#apptRows").innerHTML = patients.map((p) => `
+        <tr class="${p.alert ? "alert-row" : ""}">
+          <td>${p.full_name}<div class="muted">${p.file_number}</div></td>
+          <td>${p.phone || "—"}</td>
+          <td><input type="datetime-local" id="appt-${p.id}" value="${toLocalInputValue(p.visit_date)}" /></td>
+          <td><button class="btn btn-sm btn-secondary" data-save-appt="${p.id}">حفظ الموعد</button></td>
+          <td>${p.checked_in ? '<span class="badge">وصل</span>' : `<button class="btn btn-sm btn-primary" data-checkin="${p.id}">المريض وصل</button>`}</td>
+          <td><button class="btn btn-sm btn-ghost" data-open="${p.id}">فتح</button></td>
+        </tr>
+      `).join("");
+
+      $$("[data-save-appt]").forEach((b) => b.onclick = async () => {
+        await API.patch(`/patients/${b.dataset.saveAppt}/appointment/`, {
+          visit_date: fromLocalInputValue($(`#appt-${b.dataset.saveAppt}`).value),
+        });
+        showAlert($("#alert"), "تم حفظ الموعد.", "ok");
+        fetchPatients($("#search").value.trim());
+      });
+      $$("[data-checkin]").forEach((b) => b.onclick = async () => {
+        await API.post(`/patients/${b.dataset.checkin}/check-in/`, {});
+        fetchPatients($("#search").value.trim());
+      });
+      $$("[data-open]").forEach((b) => b.onclick = () => {
+        $$(".sidebar .tab-btn")[2].click();
+        openPatient(Number(b.dataset.open));
+      });
+    }
+
+    function renderPatientList() {
+      $("#patientList").innerHTML = patients.map((p) => `
+        <div class="list-item ${current?.id===p.id?"active":""}" data-pid="${p.id}">
+          <strong>${p.full_name}</strong>
+          <div class="muted">${p.file_number} — ${p.phone || ""}</div>
+        </div>
+      `).join("") || `<div class="empty">لا نتائج</div>`;
+      $$("[data-pid]").forEach((el) => el.onclick = () => openPatient(Number(el.dataset.pid)));
+    }
+
+    async function openPatient(id) {
+      current = await API.get(`/patients/${id}/`);
+      renderPatientList();
+      renderPatientBody();
+    }
+
+    $$("[data-ptab]").forEach((b) => {
+      b.onclick = () => {
+        ptab = b.dataset.ptab;
+        $$("[data-ptab]").forEach((x) => {
+          x.className = `btn btn-sm ${x.dataset.ptab === ptab ? "btn-primary" : "btn-secondary"}`;
+        });
+        if (current) renderPatientBody();
+      };
+    });
+
+    function renderPatientBody() {
+      if (!current) return;
+      const a = current.assessment || {};
+      const f = current.follow_up || {};
+      if (ptab === "assessment") {
+        $("#patientBody").innerHTML = `
+          <div class="panel"><form id="aForm">
+            <h3>${current.full_name}</h3>
+            <div class="grid-3">
+              <div class="field"><label>الوزن</label><input name="weight" type="number" step="0.1" value="${a.weight ?? ""}" /></div>
+              <div class="field"><label>الطول</label><input name="height" type="number" step="0.1" value="${a.height ?? ""}" /></div>
+              <div class="field"><label>الخصر</label><input name="waist" type="number" step="0.1" value="${a.waist ?? ""}" /></div>
+              <div class="field"><label>الورك</label><input name="hip" type="number" step="0.1" value="${a.hip ?? ""}" /></div>
+              <div class="field"><label>أيام الرياضة</label><input name="sport_days_per_week" type="number" value="${a.sport_days_per_week ?? ""}" /></div>
+              <div class="field"><label>الهدف</label>
+                <select name="goal">
+                  <option value="">—</option>
+                  <option value="lose" ${a.goal==="lose"?"selected":""}>نزول</option>
+                  <option value="maintain" ${a.goal==="maintain"?"selected":""}>ثبات</option>
+                  <option value="gain" ${a.goal==="gain"?"selected":""}>زيادة</option>
+                </select>
+              </div>
+            </div>
+            <div class="field"><label>التاريخ الطبي</label><textarea name="medical_history">${a.medical_history||""}</textarea></div>
+            <div class="field"><label>الأدوية</label><textarea name="medications">${a.medications||""}</textarea></div>
+            <div class="field"><label>عادات الأكل</label><textarea name="eating_habits">${a.eating_habits||""}</textarea></div>
+            <button class="btn btn-primary" type="submit">حفظ التقييم</button>
+          </form></div>`;
+        $("#aForm").onsubmit = async (e) => {
+          e.preventDefault();
+          const payload = Object.fromEntries(new FormData(e.target).entries());
+          ["weight","height","waist","hip","sport_days_per_week"].forEach((k)=>{
+            if(payload[k]==="") delete payload[k]; else payload[k]=Number(payload[k]);
+          });
+          await API.patch(`/patients/${current.id}/assessment/`, payload);
+          showAlert($("#alert"), "تم الحفظ.", "ok");
+          openPatient(current.id);
+        };
+      } else {
+        const inj = clinicInfo.injections || [];
+        const selected = new Set(f.injections || []);
+        const labs = f.lab_results || {};
+        $("#patientBody").innerHTML = `
+          <div class="panel"><form id="fForm">
+            <h3>ملف المتابعة — ${current.full_name}</h3>
+            <div class="grid-3">
+              ${(clinicInfo.lab_keys||[]).slice(0,8).map((k)=>`
+                <div class="field"><label>${k}</label><input name="lab__${k}" value="${labs[k] ?? ""}" /></div>
+              `).join("")}
+            </div>
+            <div class="field"><label>الإبر</label>
+              <div class="chip-row">${inj.map((i)=>`
+                <label class="chip"><input type="checkbox" name="inj" value="${i.value}" ${selected.has(i.value)?"checked":""}/> ${i.label}</label>
+              `).join("")}</div>
+            </div>
+            <div class="field"><label>الأدوية والمكملات</label><textarea name="medications_text">${f.medications_text||""}</textarea></div>
+            <div class="field"><label>النظام الغذائي</label><textarea name="diet_system">${f.diet_system||""}</textarea></div>
+            <div class="field"><label><input type="checkbox" name="fat_dissolving_sessions" ${f.fat_dissolving_sessions?"checked":""}/> جلسات تكسير الشحم</label></div>
+            <div class="grid-2">
+              <div class="field"><label>فترة المتابعة</label><input name="next_followup_value" type="number" value="${f.next_followup_value ?? ""}" /></div>
+              <div class="field"><label>الوحدة</label>
+                <select name="next_followup_unit">
+                  <option value="week" ${f.next_followup_unit!=="day"?"selected":""}>أسبوع</option>
+                  <option value="day" ${f.next_followup_unit==="day"?"selected":""}>يوم</option>
+                </select>
+              </div>
+            </div>
+            <button class="btn btn-primary" type="submit">حفظ</button>
+          </form></div>`;
+        $("#fForm").onsubmit = async (e) => {
+          e.preventDefault();
+          const fd = new FormData(e.target);
+          const lab_results = { ...(f.lab_results || {}) };
+          for (const [k,v] of fd.entries()) {
+            if (k.startsWith("lab__")) {
+              if (v) lab_results[k.replace("lab__","")] = v;
+              else delete lab_results[k.replace("lab__","")];
+            }
+          }
+          await API.patch(`/patients/${current.id}/follow-up/`, {
+            lab_results,
+            diet_system: fd.get("diet_system"),
+            injections: fd.getAll("inj"),
+            medications_text: fd.get("medications_text"),
+            fat_dissolving_sessions: fd.get("fat_dissolving_sessions") === "on",
+            next_followup_value: fd.get("next_followup_value") ? Number(fd.get("next_followup_value")) : null,
+            next_followup_unit: fd.get("next_followup_unit"),
+          });
+          showAlert($("#alert"), "تم الحفظ.", "ok");
+          openPatient(current.id);
+        };
+      }
+    }
+
+    $("#regForm").onsubmit = async (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const payload = Object.fromEntries(fd.entries());
+      payload.age = Number(payload.age);
+      payload.visit_date = fromLocalInputValue(payload.visit_date);
+      try {
+        const data = await API.post("/patients/", payload);
+        const c = data.credentials || {};
+        $("#credBox").hidden = false;
+        $("#credBox").textContent = `تم التسجيل. الهاتف: ${c.phone} — كلمة المرور: ${c.password} — الملف: ${data.patient.file_number}`;
+        e.target.reset();
+        fetchPatients();
+      } catch (err) {
+        showAlert($("#alert"), err.message);
+      }
+    };
+
+    let t1, t2;
+    $("#search").oninput = () => {
+      clearTimeout(t1);
+      t1 = setTimeout(() => fetchPatients($("#search").value.trim()), 250);
+    };
+    $("#patientSearch").oninput = () => {
+      clearTimeout(t2);
+      t2 = setTimeout(() => fetchPatients($("#patientSearch").value.trim()), 250);
+    };
+
+    const visitInput = document.querySelector('#regForm [name="visit_date"]');
+    const now = new Date();
+    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+    visitInput.value = now.toISOString().slice(0, 16);
+
+    async function boot() {
+      clinicInfo = await API.info();
+      await fetchPatients();
+      setInterval(() => fetchPatients($("#search").value.trim()).catch(() => {}), 60000);
+    }
+    boot().catch((err) => showAlert($("#alert"), err.message));
+  </script>
+</body>
+</html>
