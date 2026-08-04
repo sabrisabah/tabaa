@@ -27,6 +27,15 @@ CSRF_TRUSTED_ORIGINS = [
     if o.strip()
 ]
 
+# Trust Railway / proxy HTTPS
+if not DEBUG:
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    # Allow Railway default hosts when not explicitly restricted
+    if ALLOWED_HOSTS == ["*"] or not ALLOWED_HOSTS:
+        ALLOWED_HOSTS = [".railway.app", ".up.railway.app", "localhost", "127.0.0.1"]
+
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
