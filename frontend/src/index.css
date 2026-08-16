@@ -1,0 +1,15 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Poppins", "IBM Plex Sans Arabic", "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  --font-clinic: "Poppins", "IBM Plex Sans Arabic", "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  --font-display: "Fraunces", "IBM Plex Sans Arabic", Georgia, serif;
+}
+
+body {
+  @apply m-0 min-h-screen bg-slate-50 font-sans text-slate-900 antialiased;
+}
+
+#root {
+  @apply min-h-screen;
+}
