@@ -204,7 +204,12 @@ def day_macro_targets(day: int, calories: int) -> dict[str, int]:
 
 
 def build_weekly_plan(*, profile: UserProfile, variety_level: int = 1) -> dict:
+    from django.core.management import call_command
+
     from apps.mealplans.models import WeeklyMealTemplate
+
+    if not WeeklyMealTemplate.objects.filter(is_active=True).exists():
+        call_command("seed_program")
 
     energy = resolve_daily_goal(profile)
     tdee = int(energy["tdee"])

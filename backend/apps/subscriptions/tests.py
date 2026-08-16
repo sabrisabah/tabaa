@@ -172,3 +172,6 @@ class PaymentNotificationSignalTests(TestCase):
         self.assertEqual(opened.data["target_calories"], energy["goal_calories"])
         self.assertEqual(opened.data["goal_source"], "weight_loss")
         self.assertEqual(opened.data["deficit"], 500)
+        saturday = next(d for d in opened.data["days"] if d["day"] == 1)
+        self.assertGreaterEqual(len(saturday["meals"]), 5)
+        self.assertEqual(saturday["meals_calories_total"], opened.data["target_calories"])
