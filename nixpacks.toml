@@ -2,13 +2,14 @@ providers = ["python"]
 
 [variables]
 NIXPACKS_PYTHON_VERSION = "3.12"
-NPM_CONFIG_ENGINE_STRICT = "false"
 
 [phases.setup]
 nixPkgs = ["...", "nodejs_22"]
 
 [phases.build]
 cmds = [
-  "npm --prefix frontend install",
+  "rm -rf frontend/node_modules",
+  "npm --prefix frontend install --include=optional",
+  "npm --prefix frontend install --no-save @rolldown/binding-linux-x64-gnu",
   "npm --prefix frontend run build",
 ]
