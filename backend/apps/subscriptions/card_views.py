@@ -13,12 +13,13 @@ from rest_framework.views import APIView
 from django.http import HttpResponse
 
 from apps.subscriptions.models import (
-    AdminAlert,
     CardPayment,
+    PaymentNotification,
     SavedPaymentMethod,
     Subscription,
 )
 from apps.subscriptions.services.gateway import PaymentGateway
+from apps.subscriptions.services.messaging import notify_payment_received, subscriber_display_name
 
 
 FORBIDDEN_CARD_STORAGE_FIELDS = {
@@ -102,7 +103,22 @@ class CreateCardPaymentSerializer(serializers.Serializer):
         return attrs
 
 
+def _is_renewal(subscription: Subscription | None) -> bool:
+    if subscription is None:
+        return False
+    return Subscription.objects.filter(
+        user=subscription.user,
+        status=Subscription.Status.EXPIRED,
+    ).exists() or bool(subscription.activated_at)
+
+
 def _apply_successful_payment(payment: CardPayment, *, token: str = "", brand: str = "", last4: str = "") -> None:
+    already_succeeded = (
+        payment.status == CardPayment.Status.SUCCEEDED and payment.paid_at is not None
+    )
+    if already_succeeded:
+        return
+
     payment.status = CardPayment.Status.SUCCEEDED
     payment.paid_at = timezone.now()
     if brand:
@@ -134,6 +150,7 @@ def _apply_successful_payment(payment: CardPayment, *, token: str = "", brand: s
         payment.save(update_fields=["saved_method", "updated_at"])
 
     subscription = payment.subscription
+    is_renewal = _is_renewal(subscription)
     if subscription and subscription.status in {
         Subscription.Status.PENDING_PAYMENT,
         Subscription.Status.PAID_PENDING_ACTIVATION,
@@ -143,19 +160,34 @@ def _apply_successful_payment(payment: CardPayment, *, token: str = "", brand: s
             transaction_id=payment.gateway_transaction_id,
             note="Paid via card gateway (3-D Secure).",
         )
-        AdminAlert.objects.create(
-            user=payment.user,
-            subscription=subscription,
-            kind=AdminAlert.Kind.PAYMENT_CONFIRMED,
-            title=f"دفع بطاقة ناجح: {payment.gateway_transaction_id}",
-            body=(
-                f"الهاتف: {payment.user.username}\n"
-                f"المبلغ: {payment.amount_iqd} د.ع\n"
-                f"رقم العملية: {payment.gateway_transaction_id}\n"
-                f"البطاقة: {(payment.card_brand or 'card')} •••• {payment.card_last4}\n"
-                "يرجى تفعيل الاشتراك للسماح بعرض الوجبات."
-            ),
-        )
+
+    payer_name = subscriber_display_name(payment.user)
+    PaymentNotification.objects.create(
+        subscription=subscription,
+        payment_reference=(
+            subscription.payment_reference if subscription else payment.gateway_order_id
+        ),
+        amount_iqd=payment.amount_iqd,
+        transaction_id=payment.gateway_transaction_id,
+        payer_name=payer_name,
+        raw_payload={
+            "source": "card_send_pay",
+            "order_id": payment.gateway_order_id,
+            "transaction_id": payment.gateway_transaction_id,
+        },
+        processed=True,
+    )
+    notify_payment_received(
+        user=payment.user,
+        subscription=subscription,
+        source="إرسال / دفع بالبطاقة",
+        extra_lines=[
+            f"رقم العملية: {payment.gateway_transaction_id or '—'}",
+            f"البطاقة: {(payment.card_brand or 'card')} •••• {payment.card_last4 or '****'}",
+        ],
+        is_renewal=is_renewal,
+        payer_name=payer_name,
+    )
 
 
 class SavedPaymentMethodListView(APIView):
@@ -307,7 +339,10 @@ class CardPaymentWebhookView(APIView):
             return Response({"detail": "Missing order id."}, status=status.HTTP_400_BAD_REQUEST)
 
         payment = CardPayment.objects.filter(gateway_order_id=order_id).select_related(
-            "subscription", "user"
+            "subscription",
+            "subscription__plan",
+            "user",
+            "user__profile",
         ).first()
         if not payment:
             return Response({"detail": "Payment not found."}, status=status.HTTP_404_NOT_FOUND)
@@ -379,7 +414,15 @@ class Sandbox3DSView(APIView):
         return HttpResponse(html)
 
     def post(self, request: Request, order_id: str) -> HttpResponse:
-        payment = get_object_or_404(CardPayment, gateway_order_id=order_id)
+        payment = get_object_or_404(
+            CardPayment.objects.select_related(
+                "subscription",
+                "subscription__plan",
+                "user",
+                "user__profile",
+            ),
+            gateway_order_id=order_id,
+        )
         otp = (request.data.get("otp") if hasattr(request, "data") else None) or request.POST.get("otp", "")
         frontend = PaymentGateway().frontend_base
         if str(otp).strip() != "123456":

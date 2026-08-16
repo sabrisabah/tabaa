@@ -8,7 +8,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.accounts.models import UserProfile
-from apps.subscriptions.models import AdminAlert, PaymentNotification, Subscription, SubscriptionPlan
+from apps.subscriptions.models import PaymentNotification, Subscription, SubscriptionPlan
 from apps.subscriptions.serializers import (
     ConfirmTransferSerializer,
     SubscribeSerializer,
@@ -16,6 +16,7 @@ from apps.subscriptions.serializers import (
     SubscriptionSerializer,
 )
 from apps.subscriptions.services.lifecycle import process_subscription_lifecycle
+from apps.subscriptions.services.messaging import notify_payment_received
 from apps.subscriptions.services.superqi import payment_instructions, superqi_public_info
 
 
@@ -333,29 +334,17 @@ class ConfirmTransferView(APIView):
             processed=True,
         )
 
-        gps_line = ""
+        extra_lines = [f"العنوان: {data['address']}"]
         if data.get("gps_latitude") is not None and data.get("gps_longitude") is not None:
-            gps_line = f"\nGPS: {data['gps_latitude']}, {data['gps_longitude']}"
+            extra_lines.append(f"GPS: {data['gps_latitude']}, {data['gps_longitude']}")
 
-        kind = (
-            AdminAlert.Kind.RENEWAL_REQUEST
-            if had_prior_active
-            else AdminAlert.Kind.PAYMENT_CONFIRMED
-        )
-        AdminAlert.objects.create(
+        notify_payment_received(
             user=request.user,
             subscription=subscription,
-            kind=kind,
-            title=f"{'تجديد' if had_prior_active else 'دفع جديد'}: {data['full_name']}",
-            body=(
-                f"الاسم: {data['full_name']}\n"
-                f"الهاتف: {request.user.username}\n"
-                f"العنوان: {data['address']}\n"
-                f"المرجع: {subscription.payment_reference}\n"
-                f"المبلغ: {subscription.amount_iqd} د.ع"
-                f"{gps_line}\n"
-                "يرجى التفعيل للسماح بمتابعة عرض الوجبات."
-            ),
+            source="سوبر كي",
+            extra_lines=extra_lines,
+            is_renewal=had_prior_active,
+            payer_name=data["full_name"],
         )
 
         return Response(
@@ -409,6 +398,7 @@ class SuperQiWebhookView(APIView):
         subscription = (
             Subscription.objects.filter(payment_reference__iexact=reference)
             .exclude(status=Subscription.Status.CANCELLED)
+            .select_related("user", "user__profile", "plan")
             .order_by("-created_at")
             .first()
         )
@@ -430,21 +420,21 @@ class SuperQiWebhookView(APIView):
             Subscription.Status.PAID_PENDING_ACTIVATION,
             Subscription.Status.EXPIRED,
         }:
+            is_renewal = Subscription.objects.filter(
+                user=subscription.user,
+                status=Subscription.Status.EXPIRED,
+            ).exists() or bool(subscription.activated_at)
             subscription.mark_paid(
                 transaction_id=transaction_id,
                 note="Auto-marked paid from SuperQI webhook.",
             )
-            AdminAlert.objects.create(
+            notify_payment_received(
                 user=subscription.user,
                 subscription=subscription,
-                kind=AdminAlert.Kind.PAYMENT_CONFIRMED,
-                title=f"إشعار سوبر كي: {subscription.payment_reference}",
-                body=(
-                    f"الهاتف: {subscription.user.username}\n"
-                    f"المرجع: {subscription.payment_reference}\n"
-                    f"TX: {transaction_id or '—'}\n"
-                    "يرجى تفعيل الاشتراك."
-                ),
+                source="إشعار سوبر كي",
+                extra_lines=[f"TX: {transaction_id or '—'}"],
+                is_renewal=is_renewal,
+                payer_name=notification.payer_name,
             )
 
         return Response(
