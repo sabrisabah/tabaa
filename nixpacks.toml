@@ -12,4 +12,5 @@ cmds = [
   "npm --prefix frontend install --include=optional",
   "npm --prefix frontend install --no-save @rolldown/binding-linux-x64-gnu",
   "npm --prefix frontend run build",
+  "mkdir -p /opt/spa && cp -a frontend/dist /opt/spa/dist",
 ]

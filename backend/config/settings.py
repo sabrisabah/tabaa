@@ -9,8 +9,10 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-FRONTEND_DIST = BASE_DIR.parent / "frontend" / "dist"
 load_dotenv(BASE_DIR / ".env")
+FRONTEND_DIST = Path(
+    os.environ.get("FRONTEND_DIST", BASE_DIR.parent / "frontend" / "dist")
+)
 
 SECRET_KEY = os.environ.get(
     "DJANGO_SECRET_KEY",
