@@ -273,7 +273,7 @@ class ClinicSettings(models.Model):
     """Singleton clinic branding / payment settings for د. طيبة."""
 
     clinic_name_ar = models.CharField(max_length=120, default="د. طيبة")
-    clinic_name_en = models.CharField(max_length=120, default="Dr. Taybah")
+    clinic_name_en = models.CharField(max_length=120, default="Dr. Teeba")
     currency_code = models.CharField(max_length=8, default="IQD")
     default_discount_percent = models.PositiveSmallIntegerField(default=20)
     master_qi_card_number = models.CharField(max_length=32, default="7113596071")

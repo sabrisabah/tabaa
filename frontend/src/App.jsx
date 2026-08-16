@@ -22,7 +22,7 @@ function BrandSplash() {
         <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-white/10 ring-1 ring-white/20">
           <div className="h-6 w-6 animate-spin rounded-full border-2 border-teal-200/30 border-t-teal-100" />
         </div>
-        <p className="font-[family-name:var(--font-display)] text-3xl font-bold tracking-tight">د. طيبة</p>
+        <p className="font-[family-name:var(--font-display)] text-3xl font-bold tracking-tight">الدكتورة طيبة</p>
         <p className="mt-1 text-sm text-teal-100/70">عيادة التغذية السريرية</p>
       </div>
     </div>

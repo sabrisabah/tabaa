@@ -57,8 +57,6 @@ function CapsuleDecor() {
 export function GlassAuthFrame({
   title,
   subtitle,
-  asideTitle,
-  asideBody,
   footer,
   shake = false,
   wide = false,
@@ -67,21 +65,25 @@ export function GlassAuthFrame({
 }) {
   const { t, i18n } = useTranslation()
   const isAr = i18n.language?.startsWith('ar')
-  const heading = asideTitle || t('auth.welcomeHeading')
-  const body = asideBody || t('auth.welcomeLoginBody')
   const copyDir = isAr ? 'rtl' : 'ltr'
 
   return (
     <div className="flex min-h-screen overflow-x-hidden font-sans" dir="ltr">
       <aside
-        className="relative hidden min-h-screen w-[58%] overflow-hidden text-white lg:flex lg:flex-col lg:justify-center"
+        className="relative hidden min-h-screen w-[58%] overflow-hidden text-white lg:flex lg:flex-col lg:items-center lg:justify-center"
         style={{ background: AUTH_GRADIENT }}
       >
         <CapsuleDecor />
-        <div className="relative z-10 max-w-lg px-14 xl:px-20" dir={copyDir}>
-          <p className="mb-3 text-sm font-semibold tracking-[0.22em] text-white/80">{t('common.appName')}</p>
-          <h2 className="text-4xl font-bold leading-tight tracking-tight xl:text-5xl">{heading}</h2>
-          <p className="mt-5 max-w-md text-sm leading-relaxed text-white/85 xl:text-base">{body}</p>
+        <div className="relative z-10 max-w-xl px-12 text-center xl:px-16" dir={copyDir}>
+          <p className="text-sm font-semibold tracking-[0.28em] text-white/80">
+            {t('common.tagline')}
+          </p>
+          <h2 className="mt-4 text-6xl font-bold leading-[1.15] tracking-tight drop-shadow-sm xl:text-7xl">
+            {t('auth.welcomeHeading')}
+          </h2>
+          <p className="mx-auto mt-6 max-w-md text-lg font-medium leading-relaxed text-white/90 xl:text-xl">
+            {t('auth.motivational')}
+          </p>
         </div>
       </aside>
 
@@ -94,9 +96,10 @@ export function GlassAuthFrame({
           <div className="absolute end-4 top-4 z-20">
             <LanguageSwitcher variant="glass" />
           </div>
-          <div className="relative z-10 pr-28" dir={copyDir}>
-            <p className="text-sm font-semibold tracking-[0.18em] text-white/80">{t('common.appName')}</p>
-            <h2 className="mt-1 text-2xl font-bold">{heading}</h2>
+          <div className="relative z-10 pr-28 text-center" dir={copyDir}>
+            <p className="text-xs font-semibold tracking-[0.22em] text-white/80">{t('common.tagline')}</p>
+            <h2 className="mt-2 text-3xl font-bold leading-tight">{t('auth.welcomeHeading')}</h2>
+            <p className="mt-2 text-sm text-white/85">{t('auth.motivational')}</p>
           </div>
         </div>
 

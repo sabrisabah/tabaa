@@ -7,6 +7,7 @@ from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 from apps.accounts.models import UserProfile, WeightLog
+from apps.accounts.password import is_valid_auth_password
 from apps.accounts.phone import validate_iraq_phone
 
 User = get_user_model()
@@ -46,9 +47,9 @@ class RegisterSerializer(serializers.Serializer):
                 {"password_confirm": "Passwords do not match."},
             )
         password = attrs["password"]
-        if not password.isdigit() or len(password) != 4:
+        if not is_valid_auth_password(password):
             raise serializers.ValidationError(
-                {"password": "Password must be exactly 4 digits."},
+                {"password": "Password must be exactly 4 letters or digits."},
             )
         validate_password(password)
         return attrs

@@ -1,6 +1,7 @@
 import { useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { formatIraqLocalInput, isValidIraqLocal } from '../../utils/phone'
+import { formatAuthPassword, isValidAuthPassword } from '../../utils/password'
 import { login } from '../../api/auth'
 import { formatAuthError } from './AuthShell'
 import {
@@ -38,6 +39,12 @@ export default function GlassLogin({ onSuccess, onGoRegister }) {
       window.setTimeout(() => setShake(false), 450)
       return
     }
+    if (!isValidAuthPassword(password)) {
+      setError(t('auth.invalidPassword'))
+      setShake(true)
+      window.setTimeout(() => setShake(false), 450)
+      return
+    }
 
     setSubmitting(true)
     try {
@@ -57,8 +64,6 @@ export default function GlassLogin({ onSuccess, onGoRegister }) {
     <GlassAuthFrame
       dir={isAr ? 'rtl' : 'ltr'}
       title={t('auth.userLogin')}
-      asideTitle={t('auth.welcomeHeading')}
-      asideBody={t('auth.welcomeLoginBody')}
       shake={shake}
       footer={
         <>
@@ -92,6 +97,7 @@ export default function GlassLogin({ onSuccess, onGoRegister }) {
             className={glassFieldInputClass}
           />
         </div>
+        <p className="px-1 text-xs text-violet-400">{t('auth.phoneHint')}</p>
 
         <div className={glassFieldClass}>
           <span className="shrink-0 text-violet-600">
@@ -102,12 +108,14 @@ export default function GlassLogin({ onSuccess, onGoRegister }) {
             type="password"
             autoComplete="current-password"
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={(e) => setPassword(formatAuthPassword(e.target.value))}
             required
+            maxLength={4}
             placeholder={t('auth.password')}
             className={glassFieldInputClass}
           />
         </div>
+        <p className="px-1 text-xs text-violet-400">{t('auth.passwordHint')}</p>
 
         <div className="flex items-center justify-between gap-3 px-1 pt-1 text-sm text-violet-500">
           <label htmlFor={rememberId} className="inline-flex cursor-pointer items-center gap-2">
@@ -144,7 +152,7 @@ export default function GlassLogin({ onSuccess, onGoRegister }) {
 
         <button
           type="submit"
-          disabled={submitting || !phoneLocal || !password}
+          disabled={submitting || phoneLocal.length !== 11 || password.length !== 4}
           className={`mt-2 ${glassPrimaryBtn} ${isAr ? '' : 'uppercase tracking-[0.18em]'}`}
         >
           {submitting ? t('auth.signingIn') : t('auth.loginCta')}

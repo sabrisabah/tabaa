@@ -5,6 +5,8 @@ backend/**/*.pyc
 backend/**/*.pyo
 backend/*.sqlite3
 backend/db.sqlite3
+backend/staticfiles/
+.railway/
 *.egg-info/
 .pytest_cache/
 

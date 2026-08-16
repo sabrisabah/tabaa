@@ -20,6 +20,7 @@ import ProfileDetailsFields, {
 } from '../components/auth/ProfileDetailsFields'
 import TdeeResultsCard from '../components/auth/TdeeResultsCard'
 import { formatIraqLocalInput, isValidIraqLocal } from '../utils/phone'
+import { formatAuthPassword, isValidAuthPassword } from '../utils/password'
 
 export default function Register({ onSuccess, onGoLogin }) {
   const { t, i18n } = useTranslation()
@@ -52,8 +53,8 @@ export default function Register({ onSuccess, onGoLogin }) {
       triggerShake(t('auth.invalidPhone'))
       return
     }
-    if (!/^\d{4}$/.test(password)) {
-      triggerShake(t('auth.passwordHint'))
+    if (!isValidAuthPassword(password)) {
+      triggerShake(t('auth.invalidPassword'))
       return
     }
     if (password !== passwordConfirm) {
@@ -115,8 +116,6 @@ export default function Register({ onSuccess, onGoLogin }) {
       dir={isAr ? 'rtl' : 'ltr'}
       title={titles[step].title}
       subtitle={titles[step].subtitle}
-      asideTitle={t('auth.welcomeHeading')}
-      asideBody={t('auth.welcomeRegisterBody')}
       shake={shake}
       wide={step !== 1}
       footer={
@@ -151,6 +150,7 @@ export default function Register({ onSuccess, onGoLogin }) {
               className={glassFieldInputClass}
             />
           </div>
+          <p className="px-1 text-xs text-violet-400">{t('auth.phoneHint')}</p>
 
           <div className={glassFieldClass}>
             <span className="shrink-0 text-violet-600">
@@ -158,10 +158,9 @@ export default function Register({ onSuccess, onGoLogin }) {
             </span>
             <input
               type="password"
-              inputMode="numeric"
               autoComplete="new-password"
               value={password}
-              onChange={(e) => setPassword(e.target.value.replace(/\D/g, '').slice(0, 4))}
+              onChange={(e) => setPassword(formatAuthPassword(e.target.value))}
               required
               maxLength={4}
               placeholder={t('auth.password')}
@@ -175,10 +174,9 @@ export default function Register({ onSuccess, onGoLogin }) {
             </span>
             <input
               type="password"
-              inputMode="numeric"
               autoComplete="new-password"
               value={passwordConfirm}
-              onChange={(e) => setPasswordConfirm(e.target.value.replace(/\D/g, '').slice(0, 4))}
+              onChange={(e) => setPasswordConfirm(formatAuthPassword(e.target.value))}
               required
               maxLength={4}
               placeholder={t('auth.confirmPassword')}

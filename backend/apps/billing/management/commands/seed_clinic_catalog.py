@@ -127,7 +127,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         settings = ClinicSettings.get_solo()
         settings.clinic_name_ar = "د. طيبة"
-        settings.clinic_name_en = "Dr. Taybah"
+        settings.clinic_name_en = "Dr. Teeba"
         settings.save(update_fields=["clinic_name_ar", "clinic_name_en"])
         for row in SERVICES:
             defaults = {k: v for k, v in row.items() if k != "code"}
