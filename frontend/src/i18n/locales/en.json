@@ -175,9 +175,9 @@
   "meals": {
     "title": "Weekly meals",
     "programButton": "Meal program",
-    "lockedUntilAdmin": "Locked — waiting for supervisor approval after payment",
-    "lockedHint": "The “Meal program” button next to Subscriptions stays locked until the supervisor activates it after approving payment.",
-    "subscriptionRequired": "An admin-activated subscription is required to view meals.",
+    "lockedUntilAdmin": "Locked — subscribe first to open the meal program",
+    "lockedHint": "After payment is confirmed, meals open automatically using your daily calorie goal and fat-loss plan.",
+    "subscriptionRequired": "A paid subscription is required to view meals. After confirmation, meals open automatically.",
     "loadError": "Could not load the meal plan.",
     "kcalDay": "kcal/day",
     "kg": "kg",
@@ -221,11 +221,11 @@
     "prepareOrder": "Prepare subscription order",
     "transferTab": "SuperQI transfer",
     "introCard": "Pay by card with bank authentication (OTP / 3D Secure), or transfer via SuperQI. We never store full card number or CVV — the gateway returns only a token and transaction id.",
-    "intro": "Subscribe, then transfer directly to the SuperQI number. After you confirm the transfer, the supervisor gets your name, address, and GPS, then activates access.",
+    "intro": "Subscribe, then pay by card or SuperQI. After confirmation, the meal program opens automatically using your daily goal and fat-loss plan.",
     "renewRequired": "Your subscription ended — finished calendar days are white. Please subscribe again.",
-    "renewAdminNote": "After payment, a supervisor must approve before meal access returns.",
-    "unlockMeals": "To unlock the weekly meal schedule (5 meals/day based on your calories), subscribe first.",
-    "activeBanner": "Your subscription is active. You can open the weekly meals page.",
+    "renewAdminNote": "After payment is confirmed, the meal program reopens automatically using your daily goal.",
+    "unlockMeals": "To unlock the weekly meal schedule (5 meals/day based on fat-loss calories), subscribe and confirm payment.",
+    "activeBanner": "Your subscription is active. Meals follow your daily goal and fat-loss plan.",
     "endsAt": "Ends",
     "choosePlan": "Choose a plan",
     "paySuperQi": "Create SuperQI payment request",
@@ -244,7 +244,7 @@
     "address": "Address",
     "captureGps": "Capture my GPS",
     "confirmTransfer": "I transferred",
-    "confirmOk": "Confirmation sent to the supervisor.",
+    "confirmOk": "Payment confirmed. The meal program is open using your daily goal.",
     "confirmError": "Could not confirm the transfer.",
     "nameAddressRequired": "Name and address are required.",
     "gpsUnavailable": "GPS is not available in this browser.",
@@ -253,7 +253,7 @@
     "gpsDenied": "Location permission denied — you can continue without GPS.",
     "status": {
       "pendingPayment": "Waiting for SuperQI payment",
-      "paidPending": "Payment confirmation received — awaiting admin approval",
+      "paidPending": "Paid — opening the meal program",
       "active": "Active",
       "expired": "Expired — renew payment to continue",
       "cancelled": "Cancelled"
@@ -293,7 +293,7 @@
     "payError": "Could not start payment.",
     "failed": "Payment failed or authentication was rejected.",
     "success": "Paid. Transaction id: {{tx}}",
-    "successShort": "Payment succeeded — waiting for admin activation."
+    "successShort": "Paid. The meal program is open using your daily goal and fat-loss plan."
   },
   "calendar": {
     "badge": "Subscription period",
@@ -306,7 +306,7 @@
     "upcoming": "Upcoming",
     "finished": "Finished / no access",
     "expiredBadge": "Subscription ended",
-    "expiredHint": "Access ended on {{date}}. Finished days are white. Subscribe again, then wait for supervisor approval.",
+    "expiredHint": "Access ended on {{date}}. Finished days are white. Subscribe again and meals will open automatically.",
     "renewCta": "Renew subscription",
     "period": "From {{from}} to {{to}}"
   },

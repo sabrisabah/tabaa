@@ -10,6 +10,7 @@ from apps.subscriptions.services.messaging import (
     expiry_whatsapp_body,
     queue_whatsapp,
 )
+from apps.mealplans.services.weekly import apply_weight_loss_daily_targets
 
 # Warn this many days before ends_at (inclusive of that calendar day).
 WARNING_DAYS_BEFORE = 3
@@ -20,6 +21,29 @@ def _display_name(user) -> str:
     if profile and profile.full_name:
         return profile.full_name
     return user.get_username()
+
+
+def grant_paid_meal_access(
+    *,
+    subscription: Subscription,
+    transaction_id: str = "",
+    note: str = "",
+) -> Subscription:
+    """
+    Confirm payment and immediately open the weekly meal program.
+
+    Meals scale to the subscriber's daily fat-loss goal (or the physician plan).
+    """
+    already_open = (
+        subscription.status == Subscription.Status.ACTIVE and subscription.is_access_granted
+    )
+    if not already_open:
+        if not subscription.paid_at or subscription.status != Subscription.Status.ACTIVE:
+            subscription.mark_paid(transaction_id=transaction_id, note=note)
+        subscription.activate()
+    apply_weight_loss_daily_targets(subscription.user)
+    subscription.refresh_from_db()
+    return subscription
 
 
 def send_expiry_warning(sub: Subscription) -> None:
@@ -58,7 +82,7 @@ def send_expiry_warning(sub: Subscription) -> None:
 
 
 def expire_subscription(sub: Subscription) -> None:
-    """Mark expired, revoke meal access, WhatsApp + system alert. Needs renew + admin approval."""
+    """Mark expired, revoke meal access, WhatsApp + system alert. Renew payment reopens meals."""
     if sub.status == Subscription.Status.EXPIRED:
         return
     sub.status = Subscription.Status.EXPIRED
@@ -83,7 +107,7 @@ def expire_subscription(sub: Subscription) -> None:
             f"الهاتف: {sub.user.username}\n"
             f"الباقة: {plan_name}\n"
             f"تاريخ النفاد: {end_date}\n"
-            f"تم إيقاف الوجبات. يلزم اشتراك جديد ثم موافقة المشرف.\n"
+            f"تم إيقاف الوجبات. يلزم اشتراك جديد ثم يُفتح البرنامج تلقائياً بعد تأكيد الدفع.\n"
             f"واتساب: {msg.deep_link}"
         ),
     )

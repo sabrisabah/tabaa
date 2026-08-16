@@ -62,8 +62,8 @@ def expiry_whatsapp_body(*, name: str, plan_name: str, end_date: str = "") -> st
     when = f" بتاريخ {end_date}" if end_date else ""
     return (
         f"مرحباً {greeting}، انتهى اشتراكك في باقة «{plan_name}»{when}. "
-        "تم إيقاف برنامج الوجبات. للاشتراك مرة ثانية ادفع من التطبيق، "
-        "ثم ينتظر موافقة مشرف النظام لإعادة فتح الدخول."
+        "تم إيقاف برنامج الوجبات. للاشتراك مرة ثانية ادفع من التطبيق "
+        "ليُفتح برنامج الوجبات تلقائياً حسب هدفك اليومي."
     )
 
 
@@ -72,8 +72,7 @@ def expiry_warning_whatsapp_body(*, name: str, plan_name: str, end_date: str) ->
     return (
         f"مرحباً {greeting}، تنبيه: اشتراكك في باقة «{plan_name}» "
         f"سينتهي في يوم {end_date} حسب جدول الباقة. "
-        "جدّد الاشتراك قبل النفاد لتستمر الوجبات بدون انقطاع، "
-        "وبعد الدفع يلزم موافقة المشرف للتفعيل."
+        "جدّد الاشتراك قبل النفاد لتستمر الوجبات بدون انقطاع."
     )
 
 
@@ -82,7 +81,7 @@ def payment_received_patient_body(*, name: str, subscription_number: str) -> str
     return (
         f"مرحباً {greeting}، تم استلام الدفع بنجاح. "
         f"رقم الاشتراك الشهري: {subscription_number}. "
-        "تم الدفع وبانتظار موافقة الطبيب لفتح برنامج الوجبات."
+        "تم فتح برنامج الوجبات تلقائياً حسب هدفك اليومي وخطة نزول الوزن."
     )
 
 
@@ -92,7 +91,7 @@ def payment_received_doctor_body(*, name: str, subscription_number: str, phone: 
         f"إشعار دفع: {name} قام بالدفع. "
         f"رقم الاشتراك الشهري: {subscription_number}. "
         f"الهاتف: {phone}. {amount_line}"
-        "تم الدفع وبانتظار موافقة الطبيب لفتح برنامج الوجبات."
+        "تم فتح برنامج الوجبات تلقائياً حسب الهدف اليومي وخطة نزول الوزن."
     )
 
 
@@ -116,7 +115,7 @@ def notify_payment_received(
     Django + WhatsApp signals after a successful pay (card send / SuperQI).
 
     1. AdminAlert: this person paid (name + monthly subscription number).
-    2. Messages: payment received, waiting for doctor approval to open meals.
+    2. Meal program is already open; messages confirm fat-loss meals are unlocked.
     """
     name = payer_name or subscriber_display_name(user)
     sub_no = monthly_subscription_number(subscription)
@@ -146,7 +145,7 @@ def notify_payment_received(
         lines.append(f"رقم السجل: {subscription.id}")
     if extra_lines:
         lines.extend(extra_lines)
-    lines.append("تم الدفع وبانتظار موافقة الطبيب على فتح برنامج الوجبات.")
+    lines.append("تم فتح برنامج الوجبات تلقائياً حسب الهدف اليومي وخطة نزول الوزن.")
     body = "\n".join(lines)
 
     alert = AdminAlert.objects.create(

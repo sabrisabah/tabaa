@@ -68,13 +68,13 @@ class PaymentNotificationSignalTests(TestCase):
         self.assertIn("NT-MONTH01", alert.title)
         self.assertIn("الاسم: سارة علي", alert.body)
         self.assertIn("رقم الاشتراك الشهري: NT-MONTH01", alert.body)
-        self.assertIn("بانتظار موافقة الطبيب على فتح برنامج الوجبات", alert.body)
+        self.assertIn("تم فتح برنامج الوجبات تلقائياً حسب الهدف اليومي وخطة نزول الوزن", alert.body)
 
         patient_msgs = OutboundMessage.objects.filter(user=self.patient)
         self.assertEqual(patient_msgs.count(), 1)
         self.assertIn("سارة علي", patient_msgs.first().body)
         self.assertIn("NT-MONTH01", patient_msgs.first().body)
-        self.assertIn("بانتظار موافقة الطبيب", patient_msgs.first().body)
+        self.assertIn("تم فتح برنامج الوجبات تلقائياً", patient_msgs.first().body)
 
         doctor_msgs = OutboundMessage.objects.filter(user=self.doctor)
         self.assertEqual(doctor_msgs.count(), 1)
@@ -98,7 +98,11 @@ class PaymentNotificationSignalTests(TestCase):
         self.subscription.refresh_from_db()
 
         self.assertEqual(payment.status, CardPayment.Status.SUCCEEDED)
-        self.assertEqual(self.subscription.status, Subscription.Status.PAID_PENDING_ACTIVATION)
+        self.assertEqual(self.subscription.status, Subscription.Status.ACTIVE)
+        self.assertTrue(self.subscription.is_access_granted)
+        self.patient.profile.refresh_from_db()
+        self.assertGreaterEqual(self.patient.profile.target_calories, 1200)
+        self.assertEqual(self.patient.profile.clinical_goal, "نزول الوزن")
         self.assertTrue(
             PaymentNotification.objects.filter(
                 payment_reference="NT-MONTH01",
@@ -129,8 +133,42 @@ class PaymentNotificationSignalTests(TestCase):
             format="json",
         )
         self.assertEqual(response.status_code, 200)
+        self.subscription.refresh_from_db()
+        self.assertEqual(self.subscription.status, Subscription.Status.ACTIVE)
+        self.assertTrue(self.subscription.is_access_granted)
         alert = AdminAlert.objects.get(user=self.patient)
         self.assertIn("سارة علي", alert.title)
         self.assertIn("رقم الاشتراك الشهري: NT-MONTH01", alert.body)
-        self.assertIn("بانتظار موافقة الطبيب على فتح برنامج الوجبات", alert.body)
+        self.assertIn("تم فتح برنامج الوجبات تلقائياً حسب الهدف اليومي وخطة نزول الوزن", alert.body)
         self.assertTrue(OutboundMessage.objects.filter(user=self.doctor).exists())
+
+    def test_paid_user_can_open_weekly_meals_at_fat_loss_goal(self):
+        from apps.accounts.services.tdee import calculate_daily_targets
+
+        client = APIClient()
+        client.force_authenticate(user=self.patient)
+        blocked = client.get("/api/meal-plans/weekly/")
+        self.assertEqual(blocked.status_code, 403)
+
+        client.post(
+            "/api/subscriptions/confirm-transfer/",
+            {
+                "full_name": "سارة علي",
+                "address": "بغداد",
+                "subscription_id": self.subscription.id,
+            },
+            format="json",
+        )
+        opened = client.get("/api/meal-plans/weekly/")
+        self.assertEqual(opened.status_code, 200)
+        energy = calculate_daily_targets(
+            weight_kg=Decimal("70"),
+            height_cm=Decimal("160"),
+            age=30,
+            gender=UserProfile.Gender.FEMALE,
+            activity_level=UserProfile.ActivityLevel.MODERATELY_ACTIVE,
+            deficit=500,
+        )
+        self.assertEqual(opened.data["target_calories"], energy["goal_calories"])
+        self.assertEqual(opened.data["goal_source"], "weight_loss")
+        self.assertEqual(opened.data["deficit"], 500)

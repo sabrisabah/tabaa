@@ -385,6 +385,12 @@ export default function Dashboard({
           setHasMealAccess(ok)
           refreshSubscription()
         }}
+        onMealsUnlocked={() => {
+          setHasMealAccess(true)
+          setSubsOpen(false)
+          refreshDashboard()
+          onOpenMeals?.()
+        }}
       />
     </div>
   )

@@ -15,7 +15,7 @@ from apps.subscriptions.serializers import (
     SubscriptionPlanSerializer,
     SubscriptionSerializer,
 )
-from apps.subscriptions.services.lifecycle import process_subscription_lifecycle
+from apps.subscriptions.services.lifecycle import grant_paid_meal_access, process_subscription_lifecycle
 from apps.subscriptions.services.messaging import notify_payment_received
 from apps.subscriptions.services.superqi import payment_instructions, superqi_public_info
 
@@ -315,7 +315,17 @@ class ConfirmTransferView(APIView):
             status=Subscription.Status.EXPIRED,
         ).exists() or bool(subscription.activated_at)
 
-        subscription.mark_paid(
+        if subscription.status == Subscription.Status.ACTIVE and subscription.is_access_granted:
+            return Response(
+                {
+                    "ok": True,
+                    "subscription": SubscriptionSerializer(subscription).data,
+                    "detail": "الاشتراك مفعّل وبرنامج الوجبات مفتوح حسب هدفك اليومي.",
+                }
+            )
+
+        grant_paid_meal_access(
+            subscription=subscription,
             note=f"User confirmed SuperQI transfer. Name={data['full_name']}",
         )
 
@@ -351,7 +361,7 @@ class ConfirmTransferView(APIView):
             {
                 "ok": True,
                 "subscription": SubscriptionSerializer(subscription).data,
-                "detail": "تم استلام تأكيد التحويل. بانتظار موافقة المشرف.",
+                "detail": "تم تأكيد الدفع. برنامج الوجبات مفتوح حسب هدفك اليومي وخطة نزول الوزن.",
             }
         )
 
@@ -424,7 +434,8 @@ class SuperQiWebhookView(APIView):
                 user=subscription.user,
                 status=Subscription.Status.EXPIRED,
             ).exists() or bool(subscription.activated_at)
-            subscription.mark_paid(
+            grant_paid_meal_access(
+                subscription=subscription,
                 transaction_id=transaction_id,
                 note="Auto-marked paid from SuperQI webhook.",
             )

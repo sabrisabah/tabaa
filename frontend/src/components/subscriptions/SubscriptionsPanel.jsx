@@ -17,7 +17,7 @@ const STATUS_KEYS = {
   cancelled: 'cancelled',
 }
 
-export default function SubscriptionsPanel({ open, onClose, onAccessChange }) {
+export default function SubscriptionsPanel({ open, onClose, onAccessChange, onMealsUnlocked }) {
   const { t, i18n } = useTranslation()
   const isAr = i18n.language?.startsWith('ar')
   const [loading, setLoading] = useState(true)
@@ -59,10 +59,19 @@ export default function SubscriptionsPanel({ open, onClose, onAccessChange }) {
           payment_reference: me.latest.payment_reference,
         })
       }
+      return me
     } catch (err) {
       setError(err?.response?.data?.detail || t('subscriptions.loadError'))
+      return null
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function unlockMealsIfPaid(me) {
+    if (me?.has_meal_access) {
+      onAccessChange?.(true)
+      onMealsUnlocked?.()
     }
   }
 
@@ -159,7 +168,8 @@ export default function SubscriptionsPanel({ open, onClose, onAccessChange }) {
         gps_longitude: lng,
       })
       setSuccess(data.detail || t('subscriptions.confirmOk'))
-      await load()
+      const me = await load()
+      await unlockMealsIfPaid(me)
     } catch (err) {
       setError(err?.response?.data?.detail || t('subscriptions.confirmError'))
     } finally {
@@ -345,8 +355,9 @@ export default function SubscriptionsPanel({ open, onClose, onAccessChange }) {
                     return sub
                   }}
                   onPaid={async () => {
-                    await load()
+                    const me = await load()
                     setSuccess(t('cardPay.successShort'))
+                    await unlockMealsIfPaid(me)
                   }}
                 />
               ) : null}

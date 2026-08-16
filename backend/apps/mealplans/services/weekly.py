@@ -67,6 +67,86 @@ def scale_factor(target_calories: int) -> Decimal:
     return (Decimal(calories) / Decimal(REFERENCE_CALORIES)).quantize(Decimal("0.01"))
 
 
+def _doctor_calorie_target(user) -> int | None:
+    from apps.mealplans.clinical_models import NutritionPlan, PlanStatus
+
+    plan = (
+        NutritionPlan.objects.filter(patient=user, status=PlanStatus.ACTIVE)
+        .order_by("-updated_at")
+        .first()
+    )
+    if plan is None:
+        return None
+    latest = plan.versions.order_by("-version_number").first()
+    if latest and latest.calorie_target:
+        return max(1200, int(latest.calorie_target))
+    return None
+
+
+def resolve_daily_goal(profile: UserProfile) -> dict:
+    """
+    Daily meal calories: physician plan if assigned, else a fat-loss target (TDEE − 500).
+    Under-18 skips the adult deficit.
+    """
+    paediatric = int(profile.age or 0) < 18
+    deficit = 0 if paediatric else FIXED_DEFICIT
+    energy = calculate_daily_targets(
+        weight_kg=profile.weight_kg,
+        height_cm=profile.height_cm,
+        age=profile.age,
+        gender=profile.gender,
+        activity_level=profile.activity_level,
+        deficit=deficit,
+    )
+    doctor_calories = _doctor_calorie_target(profile.user)
+    tdee = int(energy["tdee"])
+    if doctor_calories:
+        goal = doctor_calories
+        source = "doctor_plan"
+        applied_deficit = max(0, tdee - goal)
+    else:
+        goal = max(1200, int(energy["goal_calories"]))
+        source = "weight_loss"
+        applied_deficit = deficit
+    energy["goal_calories"] = goal
+    energy["target_calories"] = goal
+    energy["deficit"] = applied_deficit
+    energy["goal_source"] = source
+    energy["is_paediatric_pathway"] = paediatric
+    return energy
+
+
+def apply_weight_loss_daily_targets(user) -> dict | None:
+    """Sync profile daily targets to the fat-loss / doctor calorie goal used by meals."""
+    try:
+        profile = user.profile
+    except UserProfile.DoesNotExist:
+        return None
+
+    energy = resolve_daily_goal(profile)
+    goal = int(energy["goal_calories"])
+    from apps.accounts.services.tdee import _macros_for_calories
+
+    macros = _macros_for_calories(weight_kg=profile.weight_kg, calories=goal)
+    profile.target_calories = goal
+    profile.target_protein = macros["target_protein"]
+    profile.target_carbs = macros["target_carbs"]
+    profile.target_fats = macros["target_fats"]
+    if not (profile.clinical_goal or "").strip():
+        profile.clinical_goal = "نزول الوزن"
+    profile.save(
+        update_fields=[
+            "target_calories",
+            "target_protein",
+            "target_carbs",
+            "target_fats",
+            "clinical_goal",
+            "updated_at",
+        ]
+    )
+    return energy
+
+
 def _distribute_calories(*, base_values: list[int], target: int) -> list[int]:
     """Scale base meal kcal proportionally so the day total equals target exactly."""
     base_total = sum(base_values)
@@ -126,17 +206,10 @@ def day_macro_targets(day: int, calories: int) -> dict[str, int]:
 def build_weekly_plan(*, profile: UserProfile, variety_level: int = 1) -> dict:
     from apps.mealplans.models import WeeklyMealTemplate
 
-    energy = calculate_daily_targets(
-        weight_kg=profile.weight_kg,
-        height_cm=profile.height_cm,
-        age=profile.age,
-        gender=profile.gender,
-        activity_level=profile.activity_level,
-        deficit=FIXED_DEFICIT,
-    )
+    energy = resolve_daily_goal(profile)
     tdee = int(energy["tdee"])
-    deficit = FIXED_DEFICIT
-    # Daily meal calories = TDEE − 500 (never below 1200).
+    deficit = int(energy["deficit"])
+    # Daily meal calories = physician target, or TDEE − 500 (never below 1200).
     deficit_calories = max(1200, int(energy["goal_calories"]))
 
     templates = (
@@ -241,13 +314,26 @@ def build_weekly_plan(*, profile: UserProfile, variety_level: int = 1) -> dict:
         "scale_factor": avg_scale,
         "reference_calories": REFERENCE_CALORIES,
         "meals_per_day": 5,
+        "goal_source": energy.get("goal_source", "weight_loss"),
         "note_ar": (
-            f"السعرات اليومية = TDEE ({tdee}) − {FIXED_DEFICIT} = {deficit_calories} سعرة. "
+            f"السعرات اليومية حسب خطة نزول الوزن = {deficit_calories} سعرة "
+            f"(TDEE {tdee} − عجز {deficit}). "
             "مجموع وجبات كل يوم يطابق هذا الهدف بالضبط."
+            if energy.get("goal_source") != "doctor_plan"
+            else (
+                f"السعرات اليومية حسب خطة الطبيب = {deficit_calories} سعرة. "
+                "مجموع وجبات كل يوم يطابق هذا الهدف بالضبط."
+            )
         ),
         "note_en": (
-            f"Daily calories = TDEE ({tdee}) − {FIXED_DEFICIT} = {deficit_calories} kcal. "
+            f"Daily calories for the fat-loss plan = {deficit_calories} kcal "
+            f"(TDEE {tdee} − {deficit} deficit). "
             "Each day's meal total matches this target exactly."
+            if energy.get("goal_source") != "doctor_plan"
+            else (
+                f"Daily calories follow the physician plan = {deficit_calories} kcal. "
+                "Each day's meal total matches this target exactly."
+            )
         ),
         "days": days,
     }

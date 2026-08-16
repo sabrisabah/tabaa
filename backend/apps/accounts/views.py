@@ -25,6 +25,7 @@ def _profile_targets(*, weight_kg, height_cm, age, gender, activity_level) -> di
         age=age,
         gender=gender,
         activity_level=activity_level,
+        deficit=0 if int(age) < 18 else 500,
     )
     return {
         "target_calories": int(result["target_calories"]),
@@ -183,6 +184,9 @@ class WeightLogView(APIView):
             if profile.starting_weight_kg is None:
                 profile.starting_weight_kg = log.weight_kg
             profile.save(update_fields=["weight_kg", "starting_weight_kg", "updated_at"])
+            from apps.mealplans.services.weekly import apply_weight_loss_daily_targets
+
+            apply_weight_loss_daily_targets(request.user)
         except UserProfile.DoesNotExist:
             pass
         return Response(WeightLogSerializer(log).data, status=status.HTTP_201_CREATED)

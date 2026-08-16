@@ -19,6 +19,7 @@ from apps.subscriptions.models import (
     Subscription,
 )
 from apps.subscriptions.services.gateway import PaymentGateway
+from apps.subscriptions.services.lifecycle import grant_paid_meal_access
 from apps.subscriptions.services.messaging import notify_payment_received, subscriber_display_name
 
 
@@ -155,8 +156,10 @@ def _apply_successful_payment(payment: CardPayment, *, token: str = "", brand: s
         Subscription.Status.PENDING_PAYMENT,
         Subscription.Status.PAID_PENDING_ACTIVATION,
         Subscription.Status.EXPIRED,
+        Subscription.Status.ACTIVE,
     }:
-        subscription.mark_paid(
+        grant_paid_meal_access(
+            subscription=subscription,
             transaction_id=payment.gateway_transaction_id,
             note="Paid via card gateway (3-D Secure).",
         )
