@@ -124,7 +124,9 @@ export function AuthShell({
               <p className="font-[family-name:var(--font-display)] text-4xl font-bold tracking-tight text-white">
                 {t('common.appName')}
               </p>
-              <p className="mt-1 text-sm text-teal-100/80">{t('common.tagline')}</p>
+              <p className="mt-1 cursor-default select-none text-sm text-teal-100/80 caret-transparent [&::selection]:bg-transparent">
+                {t('common.tagline')}
+              </p>
             </div>
           </div>
         </div>
@@ -151,7 +153,9 @@ export function AuthShell({
               <p className="font-[family-name:var(--font-display)] text-2xl font-bold text-teal-950">
                 {t('common.appName')}
               </p>
-              <p className="text-xs text-teal-800/70">{t('common.tagline')}</p>
+              <p className="cursor-default select-none text-xs text-teal-800/70 caret-transparent [&::selection]:bg-transparent">
+                {t('common.tagline')}
+              </p>
             </div>
           </div>
 

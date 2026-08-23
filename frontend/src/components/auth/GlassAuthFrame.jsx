@@ -74,11 +74,8 @@ export function GlassAuthFrame({
         style={{ background: AUTH_GRADIENT }}
       >
         <CapsuleDecor />
-        <div className="relative z-10 max-w-xl px-12 text-center xl:px-16" dir={copyDir}>
-          <p className="text-sm font-semibold tracking-[0.28em] text-white/80">
-            {t('common.tagline')}
-          </p>
-          <h2 className="mt-4 text-6xl font-bold leading-[1.15] tracking-tight drop-shadow-sm xl:text-7xl">
+        <div className="relative z-10 max-w-xl cursor-default select-none px-12 text-center caret-transparent xl:px-16" dir={copyDir}>
+          <h2 className="text-6xl font-bold leading-[1.15] tracking-tight drop-shadow-sm xl:text-7xl">
             {t('auth.welcomeHeading')}
           </h2>
           <p className="mx-auto mt-6 max-w-md text-lg font-medium leading-relaxed text-white/90 xl:text-xl">
@@ -96,9 +93,8 @@ export function GlassAuthFrame({
           <div className="absolute end-4 top-4 z-20">
             <LanguageSwitcher variant="glass" />
           </div>
-          <div className="relative z-10 pr-28 text-center" dir={copyDir}>
-            <p className="text-xs font-semibold tracking-[0.22em] text-white/80">{t('common.tagline')}</p>
-            <h2 className="mt-2 text-3xl font-bold leading-tight">{t('auth.welcomeHeading')}</h2>
+          <div className="relative z-10 cursor-default select-none pr-28 text-center caret-transparent" dir={copyDir}>
+            <h2 className="text-3xl font-bold leading-tight">{t('auth.welcomeHeading')}</h2>
             <p className="mt-2 text-sm text-white/85">{t('auth.motivational')}</p>
           </div>
         </div>
