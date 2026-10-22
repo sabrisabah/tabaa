@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import LanguageSwitcher from '../components/LanguageSwitcher'
+import GlassSelect from '../components/auth/GlassSelect'
 import TdeeCalculator from '../components/tdee/TdeeCalculator'
 import { clinicApi, formatIqd, nutritionPlansApi } from '../api/clinic'
 import { fetchMyProfile } from '../api/profile'
@@ -36,6 +37,20 @@ const ACTIVITY_OPTIONS = [
   { value: 'extra_active', label: 'نشاط مكثف' },
 ]
 
+function clinicErrorMessage(err, fallback = 'تعذر تنفيذ الطلب') {
+  const data = err?.response?.data
+  if (!data) return err?.message || fallback
+  if (typeof data === 'string') return data
+  if (typeof data.detail === 'string') return data.detail
+  const parts = []
+  for (const value of Object.values(data)) {
+    if (Array.isArray(value)) parts.push(...value.map(String))
+    else if (value && typeof value === 'object') parts.push(JSON.stringify(value))
+    else if (value != null) parts.push(String(value))
+  }
+  return parts.filter(Boolean).join(' ') || fallback
+}
+
 function TabButton({ active, onClick, children }) {
   return (
     <button type="button" onClick={onClick} className={active ? glassTabActive : glassTabIdle}>
@@ -46,10 +61,10 @@ function TabButton({ active, onClick, children }) {
 
 function Field({ label, children }) {
   return (
-    <label className="block space-y-1 text-sm">
+    <div className="block space-y-1 text-sm">
       <span className="font-medium text-white/85">{label}</span>
       {children}
-    </label>
+    </div>
   )
 }
 
@@ -155,17 +170,26 @@ export default function ClinicConsole({ onLogout, onOpenPatientApp }) {
       setError('اختر مريضاً أولاً')
       return
     }
-    const items = lineDrafts
-      .filter((l) => l.service_id)
-      .map((l) => ({
-        service_id: Number(l.service_id),
-        variant_id: l.variant_id ? Number(l.variant_id) : undefined,
-        quantity: Number(l.quantity) || 1,
-      }))
-    if (!items.length) {
-      setError('أضف خدمة واحدة على الأقل')
+    const chosen = lineDrafts.filter((l) => l.service_id)
+    if (!chosen.length) {
+      setError('اختر خدمة من القائمة قبل إصدار الفاتورة')
       return
     }
+    for (const line of chosen) {
+      const svc = selectedServiceMap.get(String(line.service_id))
+      if (svc?.has_price_variants && !line.variant_id) {
+        setError(`اختر الجرعة للخدمة «${svc.name_ar}»`)
+        return
+      }
+    }
+    const items = chosen.map((l) => {
+      const svc = selectedServiceMap.get(String(l.service_id))
+      return {
+        service_id: Number(l.service_id),
+        variant_id: l.variant_id ? Number(l.variant_id) : undefined,
+        quantity: svc?.allow_quantity ? Number(l.quantity) || 1 : 1,
+      }
+    })
     try {
       const payload = {
         patient_id: selectedPatient.user_id,
@@ -182,17 +206,22 @@ export default function ClinicConsole({ onLogout, onOpenPatientApp }) {
         payload.discount_reason_custom = discountCustom
       }
       const { data: invoice } = await clinicApi.createInvoice(payload)
-      await clinicApi.payInvoice(invoice.id, {
-        amount_paid_iqd: invoice.total_due_iqd,
-        payment_method: paymentMethod,
-      })
-      setMessage(`تم إصدار الفاتورة رقم ${String(invoice.invoice_number).padStart(6, '0')}`)
+      try {
+        await clinicApi.payInvoice(invoice.id, {
+          amount_paid_iqd: invoice.total_due_iqd,
+          payment_method: paymentMethod,
+        })
+        setMessage(`تم إصدار الفاتورة رقم ${String(invoice.invoice_number).padStart(6, '0')}`)
+      } catch (payErr) {
+        setError(
+          `تم إنشاء الفاتورة رقم ${String(invoice.invoice_number).padStart(6, '0')} لكن تعذر تسجيل الدفع: ${clinicErrorMessage(payErr)}`,
+        )
+      }
       setLineDrafts([{ service_id: '', variant_id: '', quantity: 1 }])
       setDiscountPercent('')
       await refreshInvoicesAndReport()
     } catch (err) {
-      const data = err.response?.data
-      setError(typeof data === 'object' ? JSON.stringify(data) : err.message)
+      setError(clinicErrorMessage(err, 'تعذر إصدار الفاتورة'))
     }
   }
 
@@ -439,59 +468,77 @@ export default function ClinicConsole({ onLogout, onOpenPatientApp }) {
             <div className={glassPanel}>
               <h2 className="mb-3 text-base font-bold text-white">إنشاء فاتورة</h2>
               <div className="space-y-3">
+                {!services.length ? (
+                  <p className={glassAlertWarn}>
+                    دليل الخدمات غير محمّل. تأكد أن الخادم يعمل ثم حدّث الصفحة.
+                  </p>
+                ) : null}
                 {lineDrafts.map((line, idx) => {
                   const svc = selectedServiceMap.get(String(line.service_id))
+                  const variant = (svc?.variants || []).find(
+                    (v) => String(v.id) === String(line.variant_id),
+                  )
+                  const unit = variant ? variant.price_iqd : svc?.base_price_iqd
+                  const qty = svc?.allow_quantity ? Number(line.quantity) || 1 : 1
+                  const lineTotal =
+                    svc && (!svc.has_price_variants || variant) ? Number(unit) * qty : null
+                  const serviceOptions = services
+                    .filter((s) => !s.is_free_follow_up)
+                    .map((s) => ({
+                      value: String(s.id),
+                      label: `${s.name_ar} (${formatIqd(s.base_price_iqd)})`,
+                    }))
+                  const variantOptions = (svc?.variants || []).map((v) => ({
+                    value: String(v.id),
+                    label: `${v.label_ar} (${formatIqd(v.price_iqd)})`,
+                  }))
                   return (
                     <div
                       key={idx}
                       className="grid gap-2 rounded-2xl border border-white/15 bg-white/5 p-3 sm:grid-cols-4"
                     >
                       <Field label="الخدمة">
-                        <select
-                          className={inputClass}
+                        <GlassSelect
+                          shape="field"
+                          placeholder="اختر الخدمة"
                           value={line.service_id}
-                          onChange={(e) => {
+                          options={serviceOptions}
+                          onChange={(value) => {
+                            const picked = selectedServiceMap.get(String(value))
                             const next = [...lineDrafts]
-                            next[idx] = { ...next[idx], service_id: e.target.value, variant_id: '' }
+                            next[idx] = {
+                              ...next[idx],
+                              service_id: value,
+                              variant_id: '',
+                              quantity: picked?.allow_quantity ? next[idx].quantity || 1 : 1,
+                            }
                             setLineDrafts(next)
+                            setError('')
                           }}
-                        >
-                          <option value="">—</option>
-                          {services
-                            .filter((s) => !s.is_free_follow_up)
-                            .map((s) => (
-                              <option key={s.id} value={s.id}>
-                                {s.name_ar} ({formatIqd(s.base_price_iqd)})
-                              </option>
-                            ))}
-                        </select>
+                        />
                       </Field>
                       <Field label="الجرعة / المتغير">
-                        <select
-                          className={inputClass}
+                        <GlassSelect
+                          shape="field"
+                          placeholder={svc?.has_price_variants ? 'اختر الجرعة' : '—'}
                           value={line.variant_id}
                           disabled={!svc?.has_price_variants}
-                          onChange={(e) => {
+                          options={variantOptions}
+                          onChange={(value) => {
                             const next = [...lineDrafts]
-                            next[idx] = { ...next[idx], variant_id: e.target.value }
+                            next[idx] = { ...next[idx], variant_id: value }
                             setLineDrafts(next)
+                            setError('')
                           }}
-                        >
-                          <option value="">—</option>
-                          {(svc?.variants || []).map((v) => (
-                            <option key={v.id} value={v.id}>
-                              {v.label_ar} ({formatIqd(v.price_iqd)})
-                            </option>
-                          ))}
-                        </select>
+                        />
                       </Field>
                       <Field label="الكمية">
                         <input
                           type="number"
                           min="1"
                           className={inputClass}
-                          value={line.quantity}
-                          disabled={svc && !svc.allow_quantity}
+                          value={svc && !svc.allow_quantity ? 1 : line.quantity}
+                          disabled={!svc?.allow_quantity}
                           onChange={(e) => {
                             const next = [...lineDrafts]
                             next[idx] = { ...next[idx], quantity: e.target.value }
@@ -503,11 +550,22 @@ export default function ClinicConsole({ onLogout, onOpenPatientApp }) {
                         <button
                           type="button"
                           className={`w-full ${glassBtnGhost}`}
-                          onClick={() => setLineDrafts((rows) => rows.filter((_, i) => i !== idx))}
+                          onClick={() =>
+                            setLineDrafts((rows) =>
+                              rows.length === 1
+                                ? [{ service_id: '', variant_id: '', quantity: 1 }]
+                                : rows.filter((_, i) => i !== idx),
+                            )
+                          }
                         >
                           حذف
                         </button>
                       </div>
+                      {lineTotal != null ? (
+                        <p className="text-sm text-white/80 sm:col-span-4">
+                          المجموع: {formatIqd(lineTotal)}
+                        </p>
+                      ) : null}
                     </div>
                   )
                 })}
@@ -532,17 +590,12 @@ export default function ClinicConsole({ onLogout, onOpenPatientApp }) {
                   />
                 </Field>
                 <Field label="سبب الخصم">
-                  <select
-                    className={inputClass}
+                  <GlassSelect
+                    shape="field"
                     value={discountReason}
-                    onChange={(e) => setDiscountReason(e.target.value)}
-                  >
-                    {DISCOUNT_REASONS.map((r) => (
-                      <option key={r.value} value={r.value}>
-                        {r.label}
-                      </option>
-                    ))}
-                  </select>
+                    options={DISCOUNT_REASONS}
+                    onChange={setDiscountReason}
+                  />
                 </Field>
                 <Field label="سبب مخصص">
                   <input
@@ -552,18 +605,22 @@ export default function ClinicConsole({ onLogout, onOpenPatientApp }) {
                   />
                 </Field>
                 <Field label="طريقة الدفع">
-                  <select
-                    className={inputClass}
+                  <GlassSelect
+                    shape="field"
                     value={paymentMethod}
-                    onChange={(e) => setPaymentMethod(e.target.value)}
-                  >
-                    <option value="cash">نقداً</option>
-                    <option value="master_qi_card">
-                      Master Qi Card ({settings?.master_qi_card_number})
-                    </option>
-                  </select>
+                    options={[
+                      { value: 'cash', label: 'نقداً' },
+                      {
+                        value: 'master_qi_card',
+                        label: `Master Qi Card (${settings?.master_qi_card_number || ''})`,
+                      },
+                    ]}
+                    onChange={setPaymentMethod}
+                  />
                 </Field>
               </div>
+
+              {error ? <p className={`mt-4 ${glassAlertErr}`}>{error}</p> : null}
 
               <button type="button" onClick={handleCreateInvoice} className={`mt-4 ${glassBtnWhite}`}>
                 إصدار فاتورة وتسجيل الدفع

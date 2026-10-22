@@ -7,6 +7,8 @@ export default function GlassSelect({
   className = '',
   placeholder = '—',
   placement = 'auto',
+  disabled = false,
+  shape = 'pill',
 }) {
   const [open, setOpen] = useState(false)
   const [dropUp, setDropUp] = useState(placement === 'top')
@@ -53,8 +55,13 @@ export default function GlassSelect({
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={listId}
-        onClick={() => setOpen((prev) => !prev)}
-        className="flex h-10 w-full min-w-[4.5rem] items-center justify-between gap-2 rounded-full border border-white/60 bg-white/10 px-3 text-sm text-white outline-none backdrop-blur-sm transition hover:bg-white/15 focus:border-white focus:ring-2 focus:ring-white/20"
+        disabled={disabled}
+        onClick={() => {
+          if (!disabled) setOpen((prev) => !prev)
+        }}
+        className={`flex h-10 w-full min-w-[4.5rem] items-center justify-between gap-2 border border-white/60 bg-white/10 px-3 text-sm text-white outline-none backdrop-blur-sm transition hover:bg-white/15 focus:border-white focus:ring-2 focus:ring-white/20 disabled:cursor-not-allowed disabled:opacity-50 ${
+          shape === 'field' ? 'rounded-xl' : 'rounded-full'
+        }`}
       >
         <span className="truncate">{selected ? selected.label : placeholder}</span>
         <svg viewBox="0 0 20 20" className="h-4 w-4 shrink-0 opacity-80" fill="none" aria-hidden>

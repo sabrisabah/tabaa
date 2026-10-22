@@ -117,9 +117,8 @@ def create_invoice(
                 {"items": f"الخدمة «{service.name_ar}» تتطلب اختيار جرعة/متغير سعر."},
             )
 
-        if not service.allow_quantity and quantity != 1 and not service.is_doctor_visit:
-            # Still allow quantity override for injection-type services flagged allow_quantity
-            pass
+        if not service.allow_quantity:
+            quantity = 1
 
         unit_price = 0 if service.is_free_follow_up else resolve_unit_price(service=service, variant=variant)
         InvoiceLine.objects.create(
